@@ -122,7 +122,6 @@ function advanceLivePosition(
 }
 
 export default function RadioPage() {
-  const [isDark, setIsDark] = useState(false)
   const [radioHydrated, setRadioHydrated] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
@@ -132,6 +131,8 @@ export default function RadioPage() {
   const prevIndexRef = useRef<number | null>(null)
   const pendingSeekRef = useRef<PendingSeek | null>(null)
   const persistRef = useRef({ index: 0, playing: true })
+  /** true = usuario quiere radio encendida (sigue true si autoplay falla hasta que pause a propósito) */
+  const wantsPlaybackRef = useRef(true)
   const trackDurationsRef = useRef<(number | null)[]>(
     Array.from({ length: sets.length }, () => null),
   )
@@ -238,14 +239,22 @@ export default function RadioPage() {
     }
   }, [radioHydrated, flushRadioState])
 
-  // Apply theme class to html element
+  // Primer toque/tecla: muchos despliegues bloquean autoplay sin gesto del usuario
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
+    if (!radioHydrated) return
+    const tryPlayAfterGesture = () => {
+      if (!wantsPlaybackRef.current) return
+      const audio = audioRef.current
+      if (!audio?.paused) return
+      void audio.play().then(() => setIsPlaying(true)).catch(() => {})
     }
-  }, [isDark])
+    document.addEventListener("pointerdown", tryPlayAfterGesture, { capture: true })
+    document.addEventListener("keydown", tryPlayAfterGesture, { capture: true })
+    return () => {
+      document.removeEventListener("pointerdown", tryPlayAfterGesture, { capture: true })
+      document.removeEventListener("keydown", tryPlayAfterGesture, { capture: true })
+    }
+  }, [radioHydrated])
 
   const playNext = useCallback(() => {
     setCurrentIndex((prev) => (prev + 1) % sets.length)
@@ -263,7 +272,7 @@ export default function RadioPage() {
 
     const applyPlayPause = () => {
       if (isPlaying) {
-        audio.play().catch(() => {
+        void audio.play().then(() => setIsPlaying(true)).catch(() => {
           setIsPlaying(false)
         })
       } else {
@@ -303,11 +312,13 @@ export default function RadioPage() {
       }
 
       audio.addEventListener("loadedmetadata", afterSourceReady)
-      fallbackTimer = window.setTimeout(afterSourceReady, 400)
+      audio.addEventListener("canplay", afterSourceReady)
+      fallbackTimer = window.setTimeout(afterSourceReady, 2500)
 
       return () => {
         if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer)
         audio.removeEventListener("loadedmetadata", afterSourceReady)
+        audio.removeEventListener("canplay", afterSourceReady)
       }
     }
 
@@ -361,15 +372,18 @@ export default function RadioPage() {
     if (!audio) return
 
     if (isPlaying) {
+      wantsPlaybackRef.current = false
       audio.pause()
     } else {
-      audio.play().catch(() => {
+      wantsPlaybackRef.current = true
+      void audio.play().catch(() => {
         /* autoplay / decode error */
       })
     }
   }
 
   const handleSelectSet = (index: number) => {
+    wantsPlaybackRef.current = true
     pendingSeekRef.current = null
     setCurrentIndex(index)
     setIsPlaying(true)
@@ -394,7 +408,7 @@ export default function RadioPage() {
             <h1 className="text-base font-medium">Giannluca&apos;s Boiler</h1>
             <p className="text-[10px] uppercase tracking-widest text-accent">24/7 Radio</p>
           </div>
-          <ThemeToggle isDark={isDark} onToggle={() => setIsDark(!isDark)} />
+          <ThemeToggle />
         </header>
         <div className="flex flex-1 items-center justify-center px-6">
           <p className="text-sm text-muted-foreground">Sintonizando…</p>
@@ -405,7 +419,7 @@ export default function RadioPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors">
-      <audio ref={audioRef} preload="metadata">
+      <audio ref={audioRef} preload="auto" playsInline>
         <source src={currentSet.src} type="audio/mpeg" />
       </audio>
 
@@ -414,7 +428,7 @@ export default function RadioPage() {
           <h1 className="text-base font-medium">Giannluca&apos;s Boiler</h1>
           <p className="text-[10px] uppercase tracking-widest text-accent">24/7 Radio</p>
         </div>
-        <ThemeToggle isDark={isDark} onToggle={() => setIsDark(!isDark)} />
+        <ThemeToggle />
       </header>
 
       <main className="flex flex-col items-center px-6 py-8">
