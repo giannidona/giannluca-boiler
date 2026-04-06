@@ -1,5 +1,6 @@
 "use client"
 
+import { formatAudioTime } from "@/lib/utils"
 import { EqBars } from "./eq-bars"
 
 export interface Set {
@@ -15,10 +16,11 @@ interface SetlistProps {
   sets: Set[]
   currentIndex: number
   isPlaying: boolean
+  activeDuration: number
   onSelectSet: (index: number) => void
 }
 
-export function Setlist({ sets, currentIndex, isPlaying, onSelectSet }: SetlistProps) {
+export function Setlist({ sets, currentIndex, isPlaying, activeDuration, onSelectSet }: SetlistProps) {
   return (
     <div className="w-full max-w-md">
       <div className="border-t border-border pt-6 pb-2">
@@ -52,7 +54,11 @@ export function Setlist({ sets, currentIndex, isPlaying, onSelectSet }: SetlistP
                 <p className="text-xs text-muted-foreground truncate">{set.genre}</p>
               </div>
               
-              <span className="text-xs text-muted-foreground shrink-0">{set.duration}</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {isActive && activeDuration > 0 && Number.isFinite(activeDuration)
+                  ? formatAudioTime(activeDuration)
+                  : set.duration || "—"}
+              </span>
             </button>
           )
         })}
