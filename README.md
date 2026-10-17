@@ -33,7 +33,10 @@ Cambiar la lista o el orden mueve la grilla para todos (es esperable).
 - Los que entran con "Solo escuchar" igual ven a los demás y suman al contador de online.
 - Sin servidor la web sigue andando: se puede caminar solo y la radio suena igual.
 
-Controles: WASD o flechas para caminar, Shift para correr, 1–5 para bailar, arrastrar para girar la cámara. En el celular, joystick y botones.
+- Chat: Enter abre el chat, el mensaje aparece en el historial y en un globito sobre la cabeza. Máximo 140 caracteres y un mensaje cada 0,7 s por persona.
+- Cada navegador manda una señal cada 50 s para que el hosting gratis no duerma el servidor mientras hay gente adentro.
+
+Controles: WASD o flechas para caminar, Shift para correr, 1–5 para bailar, Enter para chatear, arrastrar para girar la cámara. En el celular, joystick, botones y el botón "Chat".
 
 ### Correrlo local
 

@@ -43,3 +43,18 @@ body {
   border-radius: 9999px;
   background: var(--accent);
 }
+
+/* Mensajes del chat cerrado: se ven un rato y se desvanecen */
+@keyframes chat-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.chat-fade {
+  animation: chat-fade 15s ease-in forwards;
+}

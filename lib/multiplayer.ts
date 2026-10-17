@@ -1,7 +1,7 @@
 "use client"
 
 import { useSyncExternalStore } from "react"
-import { ANIM, TICK_HZ, type ClientMessage, type ServerMessage } from "@/server/protocol"
+import { ANIM, HEARTBEAT_MS, TICK_HZ, sanitizeChat, type ClientMessage, type ServerMessage } from "@/server/protocol"
 import { lookFromName, type Look } from "@/components/scene/looks"
 
 /** Otro jugador, tal como lo vemos nosotros (interpolado entre los paquetes del servidor). */
@@ -20,6 +20,18 @@ export interface RemotePlayer {
   placed: boolean
 }
 
+export interface ChatMessage {
+  key: number
+  /** Id del jugador que lo mandó */
+  id: number
+  name: string
+  text: string
+  /** Date.now() al recibirlo */
+  at: number
+}
+
+const CHAT_HISTORY = 40
+
 export interface Roster {
   status: "offline" | "connecting" | "online"
   /** Personas conectadas (caminando o solo escuchando). */
@@ -27,6 +39,7 @@ export interface Roster {
   selfId: number | null
   full: boolean
   players: { id: number; name: string }[]
+  chat: ChatMessage[]
 }
 
 function serverUrl(): string | null {
@@ -42,17 +55,19 @@ class Multiplayer {
   private name: string | null = null
   private retry = 0
   private retryTimer: number | undefined
+  private heartbeat: number | undefined
+  private chatKey = 0
   private lastSent = 0
   private lastState = ""
   private listeners = new Set<() => void>()
-  private roster: Roster = { status: "offline", online: 0, selfId: null, full: false, players: [] }
+  private roster: Roster = { status: "offline", online: 0, selfId: null, full: false, players: [], chat: [] }
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
     return () => this.listeners.delete(fn)
   }
   getRoster = () => this.roster
-  private static readonly SERVER_ROSTER: Roster = { status: "offline", online: 0, selfId: null, full: false, players: [] }
+  private static readonly SERVER_ROSTER: Roster = { status: "offline", online: 0, selfId: null, full: false, players: [], chat: [] }
   getServerRoster = () => Multiplayer.SERVER_ROSTER
 
   private update(patch: Partial<Roster>) {
@@ -77,6 +92,9 @@ class Multiplayer {
       this.retry = 0
       this.update({ status: "online" })
       if (this.name) this.send({ t: "join", name: this.name })
+      // Aunque nadie se mueva, el servidor recibe algo y el hosting no lo duerme.
+      window.clearInterval(this.heartbeat)
+      this.heartbeat = window.setInterval(() => this.send({ t: "ping" }), HEARTBEAT_MS)
     }
     ws.onmessage = (e) => {
       try {
@@ -87,6 +105,7 @@ class Multiplayer {
     }
     ws.onclose = () => {
       this.ws = null
+      window.clearInterval(this.heartbeat)
       this.remotes.clear()
       this.update({ status: "offline", online: 0, selfId: null, players: [] })
       // Reintenta con espera creciente (1s, 2s, 4s… hasta 15s)
@@ -97,6 +116,7 @@ class Multiplayer {
 
   disconnect() {
     window.clearTimeout(this.retryTimer)
+    window.clearInterval(this.heartbeat)
     if (this.ws) {
       this.ws.onclose = null
       this.ws.close()
@@ -107,6 +127,14 @@ class Multiplayer {
   join(name: string) {
     this.name = name
     if (this.ws?.readyState === WebSocket.OPEN) this.send({ t: "join", name })
+  }
+
+  /** Devuelve false si no se pudo mandar (sin conexión o mensaje vacío). */
+  sendChat(raw: string): boolean {
+    const text = sanitizeChat(raw)
+    if (!text || this.roster.selfId === null || this.ws?.readyState !== WebSocket.OPEN) return false
+    this.send({ t: "chat", text })
+    return true
   }
 
   /** Lo llama el jugador local cada frame; se envía como mucho TICK_HZ veces por segundo. */
@@ -168,6 +196,11 @@ class Multiplayer {
         this.remotes.delete(msg.id)
         this.syncPlayers()
         break
+      case "chat": {
+        const message: ChatMessage = { key: this.chatKey++, id: msg.id, name: msg.name, text: msg.text, at: Date.now() }
+        this.update({ chat: [...this.roster.chat, message].slice(-CHAT_HISTORY) })
+        break
+      }
       case "full":
         this.update({ full: true })
         break

@@ -7,6 +7,7 @@ import { EntryScreen } from "./entry-screen"
 import { RadioCard, RadioPill } from "./radio-card"
 import { Schedule } from "./schedule"
 import { EmoteBar, Joystick } from "./controls"
+import { Chat } from "./chat"
 import { LiveBadge, useCoarsePointer } from "./shared"
 
 const chip =
@@ -31,6 +32,8 @@ export function Overlay({
   const touch = useCoarsePointer()
   const [showSchedule, setShowSchedule] = useState(false)
   const [radioOpen, setRadioOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const chat = <Chat roster={roster} canWrite={joined} open={chatOpen} onOpenChange={setChatOpen} />
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none text-white">
@@ -46,6 +49,11 @@ export function Overlay({
         </div>
         {radio.tunedIn && (
           <div className="flex gap-2">
+            {joined && touch && (
+              <button onClick={() => setChatOpen((v) => !v)} className={chip}>
+                Chat
+              </button>
+            )}
             {joined && (
               <button onClick={onToggleCamera} className={chip}>
                 {follow ? "Vista Boiler" : "Mi cámara"}
@@ -86,6 +94,7 @@ export function Overlay({
             ) : (
               <RadioPill radio={radio} onExpand={() => setRadioOpen(true)} />
             )}
+            <div className="mt-2">{chat}</div>
           </div>
           <div className="absolute bottom-6 left-6">
             <Joystick />
@@ -96,13 +105,14 @@ export function Overlay({
         </>
       ) : (
         <>
-          <div className="absolute inset-x-4 bottom-4 sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-96">
+          <div className="absolute inset-x-4 bottom-4 flex flex-col gap-3 sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-96">
+            {chat}
             <RadioCard radio={radio} />
           </div>
           <div className="absolute bottom-6 right-6 hidden flex-col items-end gap-3 md:flex">
             <p className="max-w-64 text-right text-[10px] uppercase leading-relaxed tracking-widest text-white/35">
               {joined && follow
-                ? "WASD caminar · Shift correr · 1–5 bailar · arrastrá para mirar"
+                ? "WASD caminar · Shift correr · 1–5 bailar · Enter chatear · arrastrá para mirar"
                 : "Arrastrá para mirar · rueda para acercarte"}
             </p>
             {joined && <EmoteBar />}

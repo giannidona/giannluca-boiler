@@ -5,6 +5,7 @@ import {
   FLOOR,
   MAX_PLAYERS,
   TICK_HZ,
+  sanitizeChat,
   sanitizeName,
   type ClientMessage,
   type ServerMessage,
@@ -17,11 +18,14 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .map((o) => o.trim())
   .filter(Boolean)
 const MAX_MESSAGES_PER_SEC = 40
+/** Mínimo entre dos mensajes de chat de la misma persona. */
+const CHAT_COOLDOWN_MS = 700
 
 interface Client {
   ws: WebSocket
   alive: boolean
   msgCount: number
+  lastChatAt: number
   player: { id: number; name: string; x: number; z: number; yaw: number; anim: number } | null
 }
 
@@ -64,6 +68,16 @@ function handle(client: Client, msg: ClientMessage) {
     return
   }
 
+  if (msg.t === "chat" && client.player) {
+    const now = Date.now()
+    if (now - client.lastChatAt < CHAT_COOLDOWN_MS) return
+    const text = sanitizeChat(msg.text)
+    if (!text) return
+    client.lastChatAt = now
+    broadcast({ t: "chat", id: client.player.id, name: client.player.name, text })
+    return
+  }
+
   if (msg.t === "state" && client.player && Array.isArray(msg.s) && msg.s.length === 4) {
     const [x, z, yaw, anim] = msg.s
     if (![x, z, yaw, anim].every((v) => typeof v === "number" && Number.isFinite(v))) return
@@ -89,7 +103,7 @@ wss.on("connection", (ws, req) => {
     return
   }
 
-  const client: Client = { ws, alive: true, msgCount: 0, player: null }
+  const client: Client = { ws, alive: true, msgCount: 0, lastChatAt: 0, player: null }
   clients.add(client)
   send(client, { t: "roster", players: playerList() })
 
