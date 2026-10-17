@@ -9,10 +9,13 @@ import { audioBus } from "@/lib/audio-bus"
 import { Room } from "./room"
 import { DjBooth } from "./dj-booth"
 import { Dj } from "./dj"
-import { Crowd } from "./crowd"
+import { People } from "./people"
+import { PlayerController } from "./player-controller"
+import { Nameplates } from "./nameplates"
 
 const BG = "#0a0607"
 const DJ_TARGET: [number, number, number] = [0, 1.25, -0.6]
+const BOILER_CAM: [number, number, number] = [0, 1.85, 4.6]
 
 /** Una sola lectura del analizador por frame; el resto de la escena lee `audioBus`. */
 function AudioDriver() {
@@ -67,6 +70,16 @@ function StageLights() {
   )
 }
 
+/** Al volver a la vista Boiler, la cámara regresa a su lugar clásico frente a la cabina. */
+function BoilerCamReset() {
+  const { camera } = useThree()
+  useEffect(() => {
+    camera.position.set(...BOILER_CAM)
+    camera.lookAt(...DJ_TARGET)
+  }, [camera])
+  return null
+}
+
 /** Ajusta el encuadre en pantallas verticales para que el DJ no quede cortado. */
 function ResponsiveCamera() {
   const { camera, size } = useThree()
@@ -79,11 +92,11 @@ function ResponsiveCamera() {
   return null
 }
 
-export default function BoilerRoom() {
+export default function BoilerRoom({ follow, joined }: { follow: boolean; joined: boolean }) {
   return (
     <Canvas
       dpr={[1, 1.75]}
-      camera={{ position: [0, 1.85, 4.6], fov: 42, near: 0.1, far: 40 }}
+      camera={{ position: BOILER_CAM, fov: 42, near: 0.1, far: 40 }}
       gl={{ antialias: false, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping
@@ -99,22 +112,27 @@ export default function BoilerRoom() {
       <Room />
       <DjBooth />
       <Dj />
-      <Crowd />
+      <People />
+      <Nameplates showOwn={joined} />
+      <PlayerController follow={follow} />
 
-      <OrbitControls
-        makeDefault
-        target={DJ_TARGET}
-        enablePan={false}
-        enableDamping
-        dampingFactor={0.08}
-        minDistance={2.2}
-        maxDistance={6}
-        minPolarAngle={Math.PI * 0.3}
-        maxPolarAngle={Math.PI * 0.53}
-        minAzimuthAngle={-Math.PI * 0.22}
-        maxAzimuthAngle={Math.PI * 0.22}
-        rotateSpeed={0.6}
-      />
+      {!follow && <BoilerCamReset />}
+      {!follow && (
+        <OrbitControls
+          makeDefault
+          target={DJ_TARGET}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.08}
+          minDistance={2.2}
+          maxDistance={6}
+          minPolarAngle={Math.PI * 0.3}
+          maxPolarAngle={Math.PI * 0.53}
+          minAzimuthAngle={-Math.PI * 0.22}
+          maxAzimuthAngle={Math.PI * 0.22}
+          rotateSpeed={0.6}
+        />
+      )}
 
       <EffectComposer multisampling={4}>
         <Bloom mipmapBlur luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={0.9} />
